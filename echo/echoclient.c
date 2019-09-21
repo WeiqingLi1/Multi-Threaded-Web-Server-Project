@@ -82,65 +82,44 @@ int main(int argc, char **argv)
     }
 
     /* Socket Code Here */
-	if(strcmp(hostname, "localhost") == 0){
-		hostname = LOCALHOST;
+	socketfd = socket(AF_INET, SOCK_STREAM, 0);
+	if(socketfd == -1){
+		printf("Could not create a socket\n");
+		exit(1);
 
 	}
 
-	char messageBuffer[MESSAGEBUFFER];
-	char portnumchar[6];
-	int mySocket;
-	struct addinfo hints, *serverinfo, *p;
-	int returnvalue, recvMsgSize, sendMsgSize;
+	server_info = gethostbyname(hostname);
 
-	sprintf(portnumchar, "%d", portno);
-
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-
-	if((returnvalue = getaddinfo(hostname, portnumchar, &hints, &serverinfo)) != 0){
-		fprintf(stderr, "%s @ %d: [CLIENT] Failure at getaddinfo() (%s)\n", __FILE__, __LINE__, gai_strerror(returnvalue));
+	if(server_info == NULL){
+		fprintf(stderr,"Cannot find host with name %s\n", hostname);
 		exit(1);
 	}
-
+	
+	memcpy(&server_addr.sin_addr.s_addr, server_info->h_addr, server_info->h_length);
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(portno);
+	
 	//---------
-	for(p = serverinfo; p != NULL; p = p->ai_next){
-		if((mySocket = socket(p->ai_family, p->ai_socketype, p->ai_protocol)) == -1){
-			fprintf(stderr, "%s @ %d: [CLIENT] Failure at socket()\n", __FILE__, __LINE__);
-			continue;
-		}
 
-		if(connect(mySocket, p->ai_addr, p->ai_addrlen) == -1){
-			close(mySocket);
-			fprintf(stderr, "%s @ %d: [CLIENT] Failure at connect()\n", __FILE__, __LINE__);
-			continue;
-		}
-		break;
-	}
-
-	freeaddinfo(serverinfo);
-
-	if(p == NULL){
-		fprintf(stderr, "%s @ %d: [CLIENT] Failure at connect() at all\n", __FILE__, __LINE__);
+	if(connect(socketfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0){
+		printf("Error during connect\n");
 		exit(1);
 	}
 
-	sendMsgSize = send(mySocket, message, MESSAGEBUFFER -1, 0);
-	if(sendMsgSize != MESSAGEBUFFER -1){
-		fprintf(stderr, "%s @ %d: [CLIENT] Failure to send() %d bytes\n", __FILE__, __LINE__, MESSAGEBUFFER -1);
+
+	if(write(socketfd, message, strlen(message)) < 0){
+		printf("Message send failed\n");
+		exit(1);
+	}
+	
+	memset(server_reply, '\0', BUFSIZE);
+	if(recv(socketfd, server_reply , 2000 , 0) < 0){
+		printf("Reply receive failed\n");
 		exit(1);
 	}
 
-	if((recvMsgSize = recv(mySocket, messageBuffer, MESSAGEBUFFER -1, 0)) == -1){
-		fprintf(stderr, "%s @ %d: [CLIENT] Failure to recv()\n", __FILE__, __LINE__);
-		exit(1);
-	}
+	fprintf(server_reply);
 
-	messageBuffer[recvMsgSize] = '\0';
-
-	fprintf(student, "%s", messageBuffer);
-
-	close(mySocket);
 	return 0;
 }
