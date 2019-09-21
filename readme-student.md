@@ -4,7 +4,9 @@ Author: Weiqing Li wli467@uncc.edu
 
 ## Project Description
 ### Warm-up
-
+#### Echo Client - Server
+The client initializes and write a content to the socket. After the writing, the client listens for response from server.
+The server initializes and listens for a connection from client. When there is a data sent from the client, the server reads content and writes it back to the socket.
 ### Implement Getfile Protocol
 
 ### Implement Multithreated Getfile Server
