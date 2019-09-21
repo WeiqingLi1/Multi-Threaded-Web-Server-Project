@@ -81,4 +81,75 @@ int main(int argc, char **argv)
     }
 
     /* Socket Code Here */
+
+	if(strcmp(hostname, "localhost") == 0){
+		hostname = LOCALHOST;
+	}
+
+	char messageBuffer[BUFSIZE];
+	char portnumchar[6];
+	int mySocket;
+	struct addrinfo hints, *serverinfo, *p;
+	int returnvalue,recvMsgSize;
+
+	sprintf(portnumchar, "%d", portno);
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+
+	if((returnvalue = getaddrinfo(hostname, portnumchar, &hints, &serverinfo)) != 0){
+		fprintf(stderr, "%s @ %d: [CLIENT] Failure at getaddrinfo() (%s)\n", __FILE__, __LINE__, gai_strerror(returnvalue));
+		exit(1);
+	}
+
+	FILE * clientfile;
+	clientfile = fopen(filename, "a+");
+	if(clientfile == NULL){
+		fprintf(stderr, "%s @ %d: [CLIENT] Failed to fopen() %s\n", __FILE__, __LINE__, filename);
+		exit(1);
+	}
+
+	for(p = serverinfo; p != NULL; p = p->ai_next){
+		if((mySocket = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1){
+			fprintf(stderr, "%s @ %d: [CLIENT] Failure at socket()\n", __FILE__, __LINE__);
+			continue;
+		}
+
+		if(connect(mySocket, p->ai_addr, p->ai_addrlen) == -1){
+			close(mySocket);
+			fprintf(stderr, "%s @ %d: [CLIENT] Failure at connect()\n", __FILE__, __LINE__);
+			continue;
+		}
+
+		break;
+	}
+
+	freeaddrinfo(serverinfo);
+
+	if(p == NULL){
+		fprintf(stderr, "%s @ %d: [CLIENT] Failed to connect() at all\n", __FILE__, __LINE__);
+		exit(1);
+	}
+
+	if((recvMsgSize = recv(mySocket, messageBuffer, BUFSIZE-1, 0)) == -1){
+		fprintf(stderr, "%s @ %d: [CLIENT] Failure at recv()\n", __FILE__, __LINE__);
+		exit(1);
+	}
+
+	while(recvMsgSize > 0){
+		if(fwrite(messageBuffer, 1, recvMsgSize, clientfile) != recvMsgSize){
+			fprintf(stderr, "%s @ %d: [CLIENT] Failed to fwrite() %d bytes to %s\n", __FILE__, __LINE__, recvMsgSize,filename);
+			exit(1);
+		}
+
+		if((recvMsgSize = recv(mySocket, messageBuffer, BUFSIZE-1, 0)) == -1){
+			fprintf(stderr, "%s @ %d: [CLIENT] Failure at recv()\n", __FILE__, __LINE__);
+			exit(1);
+		}
+	}
+
+	fclose(clientfile);
+	close(mySocket);
+
+	return 0;
 }

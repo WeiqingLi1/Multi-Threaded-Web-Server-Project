@@ -82,5 +82,65 @@ int main(int argc, char **argv)
     }
 
     /* Socket Code Here */
+	if(strcmp(hostname, "localhost") == 0){
+		hostname = LOCALHOST;
 
+	}
+
+	char messageBuffer[MESSAGEBUFFER];
+	char portnumchar[6];
+	int mySocket;
+	struct addinfo hints, *serverinfo, *p;
+	int returnvalue, recvMsgSize, sendMsgSize;
+
+	sprintf(portnumchar, "%d", portno);
+
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+
+	if((returnvalue = getaddinfo(hostname, portnumchar, &hints, &serverinfo)) != 0){
+		fprintf(stderr, "%s @ %d: [CLIENT] Failure at getaddinfo() (%s)\n", __FILE__, __LINE__, gai_strerror(returnvalue));
+		exit(1);
+	}
+
+	//---------
+	for(p = serverinfo; p != NULL; p = p->ai_next){
+		if((mySocket = socket(p->ai_family, p->ai_socketype, p->ai_protocol)) == -1){
+			fprintf(stderr, "%s @ %d: [CLIENT] Failure at socket()\n", __FILE__, __LINE__);
+			continue;
+		}
+
+		if(connect(mySocket, p->ai_addr, p->ai_addrlen) == -1){
+			close(mySocket);
+			fprintf(stderr, "%s @ %d: [CLIENT] Failure at connect()\n", __FILE__, __LINE__);
+			continue;
+		}
+		break;
+	}
+
+	freeaddinfo(serverinfo);
+
+	if(p == NULL){
+		fprintf(stderr, "%s @ %d: [CLIENT] Failure at connect() at all\n", __FILE__, __LINE__);
+		exit(1);
+	}
+
+	sendMsgSize = send(mySocket, message, MESSAGEBUFFER -1, 0);
+	if(sendMsgSize != MESSAGEBUFFER -1){
+		fprintf(stderr, "%s @ %d: [CLIENT] Failure to send() %d bytes\n", __FILE__, __LINE__, MESSAGEBUFFER -1);
+		exit(1);
+	}
+
+	if((recvMsgSize = recv(mySocket, messageBuffer, MESSAGEBUFFER -1, 0)) == -1){
+		fprintf(stderr, "%s @ %d: [CLIENT] Failure to recv()\n", __FILE__, __LINE__);
+		exit(1);
+	}
+
+	messageBuffer[recvMsgSize] = '\0';
+
+	fprintf(student, "%s", messageBuffer);
+
+	close(mySocket);
+	return 0;
 }
