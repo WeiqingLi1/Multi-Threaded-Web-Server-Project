@@ -70,104 +70,69 @@ int main(int argc, char **argv)
 
     /* Socket Code Here */
 
-	char *hostname = LOCALHOST;
-	char messageBuffer[BUFSIZE];
-	char portnumchar[6];
-	int serverSocket, clientSocket;
-	struct addrinfo hints, *serverinfo, *p;
-	struct sockaddr their_addr;
-	socklen_t sin_size;
-	int yes=1;
-	int returnvalue,sendMsgSize;
-	size_t numbytesread,numbytestrans,numbytesremaining = 0;
+	
+	socketfd = socket(AF_INET, SOCK_STREAM, 0);
+	if(socketfd == -1){
+		perror("Could not create a socket\n");
+		exit(1);
+	}
+	
+	setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+	
+	
+	
+	memset((char *)&server_addr, '\0', sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = INADDR_ANY;
+	server_addr.sin_port = htons(portno);
 
-	sprintf(portnumchar, "%d", portno);
 
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-
-	if((returnvalue = getaddrinfo(hostname, portnumchar, &hints, &serverinfo)) != 0){
-		fprintf(stderr, "%s @ %d: [SERVER] Failure at getaddrinfo() (%s)\n", __FILE__, __LINE__, gai_strerror(returnvalue));
+	if(bind(socketfd,(struct sockaddr *)&server_addr , sizeof(server_addr)) < 0){
+		perror("Bind failed\n");
+		exit(1);
+	}
+	
+	if(listen(socketfd , 8) < 0){
+		perror("Listen failed\n");
 		exit(1);
 	}
 
-	for(p = serverinfo; p != NULL; p = p->ai_next){
-		if((serverSocket = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1){
-			fprintf(stderr, "%s @ %d: [SERVER] Failure at socket()\n", __FILE__, __LINE__);
-			continue;
-		}
-
-		if(setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &yes,sizeof(int)) == -1){
-			fprintf(stderr, "%s @ %d: [SERVER] Failure at setsockopt()\n", __FILE__, __LINE__);
+	sockaddr_size = sizeof(struct sockaddr_in);
+	while((new_socketfd = accept(socketfd, (struct sockaddr *)&client_addr, (socklen_t*)&sockaddr_size))){
+		filefd = open(filename, O_RDONLY, S_IRUSR);
+		if(filefd < 0){
+			perror("Could not open the file");
 			exit(1);
 		}
 
-		if(bind(serverSocket, p->ai_addr, p->ai_addrlen) == -1){
-			close(serverSocket);
-			fprintf(stderr, "%s @ %d: [SERVER] Failure at bind()\n", __FILE__, __LINE__);
-			continue;
-		}
-
-		break;
-	}
-
-	freeaddrinfo(serverinfo);
-
-	if(p == NULL){
-		fprintf(stderr, "%s @ %d: [SERVER] Failed to bind() to any port\n", __FILE__, __LINE__);
-		exit(1);
-	}
-
-	if(listen(serverSocket, BACKLOG) == -1){
-		fprintf(stderr, "%s @ %d: [SERVER] Failure at listen() with backlog (%d)\n", __FILE__, __LINE__, BACKLOG);
-		exit(1);
-	}
-
-	while(1){
-		sin_size = sizeof their_addr;
-		clientSocket = accept(serverSocket, (struct sockaddr *)&their_addr, &sin_size);
-		
-		if(clientSocket == -1){
-			fprintf(stderr, "%s @ %d: [SERVER] Failure at accept()\n", __FILE__, __LINE__);
-			continue;
-		}
-
-		FILE * serverfile;
-		serverfile = fopen(filename, "r+");
-		
-		if(serverfile == NULL){
-			fprintf(stderr, "%s @ %d: [SERVER] Failed to fopen() %s\n", __FILE__, __LINE__, filename);
+		fstat(filefd, &filestat);
+		sent_size = sendfile(new_socketfd, filefd, 0, filestat.st_size);
+		if(sent_size == -1){
+			perror("Error in sendfile");
 			exit(1);
 		}
 
-		while(!(feof(serverfile))){
-			numbytestrans = 0;
-
-			if((numbytesread = fread(messageBuffer, 1, BUFSIZE-1, serverfile)) == -1){
-				fprintf(stderr, "%s @ %d: [SERVER] Failed to fread() %d bytes\n", __FILE__, __LINE__, BUFSIZE-1);
-				exit(1);
-			}
-
-			numbytesremaining = numbytesread;
-
-			while(numbytestrans < numbytesread){
-				if((sendMsgSize = send(clientSocket, messageBuffer + numbytestrans, numbytesremaining, 0)) == -1){
-					fprintf(stderr, "%s @ %d: [SERVER] Failure to send()\n", __FILE__, __LINE__);
-					exit(1);
-				}
-
-				numbytestrans += sendMsgSize;
-				numbytesremaining -= sendMsgSize;
-			}
-			memset(&messageBuffer, 0, sizeof messageBuffer);
+		if(sent_size != filestat.st_size){
+			perror("Incomplete transfer from sendfile");
+			exit(1);
 		}
 
-		fclose(serverfile);
-		close(clientSocket);
+		if(close(filefd) < 0){
+			perror("Could not close file");
+			exit(1);
+		}
+		
+		if(close(new_socketfd) < 0){
+			perror("Could not close socket\n");
+			exit(1);
+		}
+	}
+	if(new_socketfd < 0){
+		perror("Connection accept failed\n");
+		exit(1);
 	}
 
-	close(serverSocket);
+
 
 	return 0;
 }
