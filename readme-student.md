@@ -12,22 +12,23 @@ The server initializes and listens for a connection from client. When there is a
 #### Transfer File
 Basic socket setup was used, and connect code for `echoclient.c` and `echoserver.c`, then add parts for file read and write.
 
-transferserver.c: when a connection accepted from client, it open a file and read a file and send it over socket.
+`transferserver.c`: when a connection accepted from client, it open a file and read a file and send it over socket.
 
-We can use a simple way: create a buffer for reading file content, then read file onto buffer using read(), and send buffer using write() to client socket. Performed in loops to read and write file in chunks.
+We can use a simple way: create a buffer for reading file content, then read file onto buffer using `read()`, and send buffer using `write()` to client socket. Performed in loops to read and write file in chunks.
 
-However, we have a better way, which I used sendfile() on server to read file and send to client. sendfile() excapsulates series of operations of the above read() and write().
+However, we have a better way, which I used `sendfile()` on server to read file and send to client. `sendfile()` excapsulates series of operations of the above `read()` and `write()`.
 
-transferclient.c: when a connection is requested, a file is opened and data received from server is written to the file until no more data read from socket.
+`transferclient.c`: when a connection is requested, a file is opened and data received from server is written to the file until no more data read from socket.
 
-Challenge: make sure appropriate access permission was given. Grant only write access to file descriptor in transferclient.c is not enough, read access is also needed, the the code works.
+Challenge: make sure appropriate access permission was given. Grant only write access to file descriptor in `transferclient.c` is not enough, read access is also needed, the the code works.
 
 
 ### Implement Getfile Protocol
-#### gfserver.c
-
-#### gfclient.c
-
+#### `gfserver.c`
+Divide big function into small functions. e.g. break function `gfserver_server` into pieces `start_server`, `parse_request`, `send_unsuccessful_response`.
+Challenge: error case handling, parse request or response string and format request or reponse string.
+#### `gfclient.c`
+Problem: issue with read from socket to receive server response stall at very last chunk. CHange buffer size not working. Need a better method.
 ### Implement Multithreated Getfile Server
 
 
