@@ -1,12 +1,14 @@
 # Project README file
+Author: Weiqing Li wli467@uncc.edu
 
-This is **YOUR** Readme file.
-
-**Note** - if you prefer, you may submit a PDF version of this readme file.  Simply create a file called **readme-student.pdf** in the same directory.  When you submit, one or the other (or both) of these files will be submitted.  This is entirely optional.
-
-**Note: the `submit.py` script will only submit files named readme-student.md and readme-student.pdf**
 
 ## Project Description
+###Warm-up
+
+###Implement Getfile Protocol
+
+###Implement Multithreated Getfile Server
+
 
 Your README file is your opportunity to demonstrate to us that you understand the project.  Ideally, this
 should be a guide that someone not familiar with the project could pick up and read and understand
