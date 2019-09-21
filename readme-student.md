@@ -8,6 +8,16 @@ Author: Weiqing Li wli467@uncc.edu
 The client initializes and write a content to the socket. After the writing, the client listens for response from server.
 
 The server initializes and listens for a connection from client. When there is a data sent from the client, the server reads content and writes it back to the socket.
+
+#### Transfer File
+Basic socket setup was used, and connect code for echoclient.c and echoserver.c, then add parts for file read and write.
+
+transferserver.c: when a connection accepted from client, it open a file and read a file and send it over socket.
+
+We can use a simple way: create a buffer for reading file content, then read file onto buffer using read(), and send buffer using write() to client socket. Performed in loops to read and write file in chunks.
+
+However, we have a better way, which I used sendfile() on server to read file and send to client. sendfile() excapsulates series of operations of the above read() and write().
+
 ### Implement Getfile Protocol
 
 ### Implement Multithreated Getfile Server
