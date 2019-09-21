@@ -80,4 +80,6 @@ Test code by changing number of threads and number of requests client made.
 Understand the response from bonnie and debug with that is too hard.
 
 ## References
-
+http://borkware.com/hacks/CRefresher.pdf
+https://stackoverflow.com/
+https://beej.us/guide/bgnet/
