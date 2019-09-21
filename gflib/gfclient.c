@@ -228,6 +228,7 @@ int gfc_perform(gfcrequest_t **gfr){
 	if(total_response_size < gfr->res_length){
 		printf("Only %zu out of %zu received\n", total_response_size, gfr->res_length);
 		return -1;
+		
 	}
 
 
