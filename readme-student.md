@@ -3,11 +3,11 @@ Author: Weiqing Li wli467@uncc.edu
 
 
 ## Project Description
-###Warm-up
+### Warm-up
 
-###Implement Getfile Protocol
+### Implement Getfile Protocol
 
-###Implement Multithreated Getfile Server
+### Implement Multithreated Getfile Server
 
 
 Your README file is your opportunity to demonstrate to us that you understand the project.  Ideally, this
