@@ -1,10 +1,46 @@
+#include <unistd.h>
+#include <stdio.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <string.h>
+#include <stdlib.h>
+#include <netdb.h>
+#include <getopt.h>
 
+#include "gfserver.h"
 #include "gfserver-student.h"
 
+#define BUFSIZE 2000
+#define SCHEME "GETFILE"
 /* 
  * Modify this file to implement the interface specified in
  * gfserver.h.
  */
+
+typedef struct gfserver_t{
+    struct sockaddr_in server_addr;
+    int max_npending;
+    ssize_t (*handler)(gfcontext_t *, char *, void*);
+    void* arg;
+    char* req_path;
+} gfserver_t;
+
+
+typedef struct gfcontext_t{
+    int client_socketfd;
+} gfcontext_t;
+
+
+void gfs_abort(gfcontext_t *ctx){
+    if (close(ctx->client_socketfd) < 0){
+        perror("Could not close socket\n");
+        exit(1);
+    }
+
+    free(ctx);
+}
 
 void gfs_abort(gfcontext_t **ctx){
 	close(ctx->socket);
@@ -12,28 +48,49 @@ void gfs_abort(gfcontext_t **ctx){
 }
 
 gfserver_t* gfserver_create(){
-	struct gfserver_t *gfs;
-	if((gfs = malloc(sizeof(struct gfserver_t))) != NULL){
-		gfs->port = 6200;
-		gfs->max_npending = MAX_REQUEST_LEN;
-		return gfs;
-	}
+
+	gfserver_t* gfs = (gfserver_t*)malloc(sizeof(gfserver_t));
+	gfs->server_addr.sin_family = AF_INET;
+	gfs->server_addr.sin_addr.s_addr = INADDR_ANY;
+	
     return (gfserver_t *)NULL;
 }
 
 ssize_t gfs_send(gfcontext_t **ctx, const void *data, size_t len){
-	ssize_t sendMsgSize;
-	if((sendMsgSize = send(ctx->socket, (char *)data, len, 0)) == -1){
-		fprintf(stderr, "%s @ %d: [SERVER] Failure to send() data\n", __FILE__, __LINE__);
-		return -1;
-	}
-	ctx->bytes_remaining -= sendMsgSize;
-	if(ctx->bytes_remaining == 0){
-		gfs_abort(ctx);
-	}
-    return -1;
+
+	ssize_t write_size, total_write_transferred = 0;
+	do {
+		if((write_size = write(ctx->client_socketfd, data, len)) < 0){
+			perror("Send failed");
+			return -1;
+		}
+		data += write_size;
+		len -= write_size;
+		total_write_transferred += write_size;
+	} while(write_size > 0)
+		
+	return total_write_transferred;
 }
 
+char* status_to_string(gfstatus_t status) {
+    char* status_string;
+
+    switch (status){
+        case 200:
+            status_string = "OK";
+            break;
+        case 400:
+            status_string = "FILE_NOT_FOUND";
+            break;
+        case 500:
+            status_string = "ERROR";
+            break;
+    }
+
+    return status_string;
+}
+
+//revise starts here
 ssize_t gfs_sendheader(gfcontext_t **ctx, gfstatus_t status, size_t file_len){
 	char messageBuffer[BUFFERLEN];
 	char statmsg[16];
