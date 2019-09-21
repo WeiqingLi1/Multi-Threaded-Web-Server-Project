@@ -1,5 +1,5 @@
 # Project README file
-Author: Weiqing Li wli467@uncc.edu
+Author: Weiqing Li wli467@gatech.edu
 
 
 ## Project Description
@@ -28,9 +28,28 @@ Challenge: make sure appropriate access permission was given. Grant only write a
 Divide big function into small functions. e.g. break function `gfserver_server` into pieces `start_server`, `parse_request`, `send_unsuccessful_response`.
 Challenge: error case handling, parse request or response string and format request or reponse string.
 #### `gfclient.c`
-Problem: issue with read from socket to receive server response stall at very last chunk. CHange buffer size not working. Need a better method.
+Problem: issue with read from socket to receive server response stall at very last chunk. Change buffer size not working. Need a better method.
 ### Implement Multithreated Getfile Server
+#### `gfclient_download.c`
+At beginning, `gfclient_download.c` made request in single thread insode `main()`. Now we need to move codes for making request to server into a seperate function so that requests can be made inside a thread.
 
+New design: now `main()` only deal with parsing arguments, initializing worker thread pool, queuing up requests into `request_queue`.
+
+Sequence of tasks `main()`: 
+    parse arguments
+--> initialize variables (e.g. request queue, mutex, condition variables etc.)
+--> initialize worker threads with function `assign_worker_to_task`
+--> queuing requests into request queue `request_queue`
+--> set variable `queuing_request_finished` used to indicate `main()` thread has finished queuing requests
+--> wait for worker threads to finish all request tasks and join
+--> free memory
+
+`assign_worker_to_task`: each worker thread will execute this function. It run indefinitely inside for-loop until `request_queue` is empty and `main()` thread has finished queuing up the requests. Worker threads wait until there is an item in `request_queue`. When there is an item, which is broad casted by `main()`, it performs making request to server. Once all items in queue are fulfilled and `main()` updated `queuing_request_finished` variableto indicate it has finished adding request to queue, worker threads exit and join the main thread.
+
+#### Challenge
+#### `gfserver_main.c`
+At beginning, `gfserver_main.c` handles request in a single thread whenever registered handler function was called. Now we need to add wrapper request handler which will queue request and notify workers to fulfill the queued requests.
+move codes for making request to server into a seperate function so that requests can be made inside a thread.
 
 Your README file is your opportunity to demonstrate to us that you understand the project.  Ideally, this
 should be a guide that someone not familiar with the project could pick up and read and understand
