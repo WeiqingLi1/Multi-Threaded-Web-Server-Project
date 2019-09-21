@@ -81,75 +81,63 @@ int main(int argc, char **argv)
     }
 
     /* Socket Code Here */
-
-	if(strcmp(hostname, "localhost") == 0){
-		hostname = LOCALHOST;
-	}
-
-	char messageBuffer[BUFSIZE];
-	char portnumchar[6];
-	int mySocket;
-	struct addrinfo hints, *serverinfo, *p;
-	int returnvalue,recvMsgSize;
-
-	sprintf(portnumchar, "%d", portno);
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-
-	if((returnvalue = getaddrinfo(hostname, portnumchar, &hints, &serverinfo)) != 0){
-		fprintf(stderr, "%s @ %d: [CLIENT] Failure at getaddrinfo() (%s)\n", __FILE__, __LINE__, gai_strerror(returnvalue));
+	socketfd = socket(AF_INET, SOCK_STREAM, 0);
+	if(socketfd == -1){
+		printf("Could not create a socket\n");
 		exit(1);
 	}
 
-	FILE * clientfile;
-	clientfile = fopen(filename, "a+");
-	if(clientfile == NULL){
-		fprintf(stderr, "%s @ %d: [CLIENT] Failed to fopen() %s\n", __FILE__, __LINE__, filename);
+	server_info = gethostbyname(hostname);
+
+	if(server_info == NULL){
+		fprintf(stderr,"Cannot find host with name %s\n", hostname);
+		exit(1);
+	}
+	
+	memcpy(&server_addr.sin_addr.s_addr, server_info->h_addr, server_info->h_length);
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(portno);
+
+	if(connect(socketfd , (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0){
+		fprintf("Error during connect\n");
+		exit(1);
+	}
+	
+	filefd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+	if(filefd < 0){
+		perror("Could not open the file");
 		exit(1);
 	}
 
-	for(p = serverinfo; p != NULL; p = p->ai_next){
-		if((mySocket = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1){
-			fprintf(stderr, "%s @ %d: [CLIENT] Failure at socket()\n", __FILE__, __LINE__);
-			continue;
-		}
-
-		if(connect(mySocket, p->ai_addr, p->ai_addrlen) == -1){
-			close(mySocket);
-			fprintf(stderr, "%s @ %d: [CLIENT] Failure at connect()\n", __FILE__, __LINE__);
-			continue;
-		}
-
-		break;
-	}
-
-	freeaddrinfo(serverinfo);
-
-	if(p == NULL){
-		fprintf(stderr, "%s @ %d: [CLIENT] Failed to connect() at all\n", __FILE__, __LINE__);
-		exit(1);
-	}
-
-	if((recvMsgSize = recv(mySocket, messageBuffer, BUFSIZE-1, 0)) == -1){
-		fprintf(stderr, "%s @ %d: [CLIENT] Failure at recv()\n", __FILE__, __LINE__);
-		exit(1);
-	}
-
-	while(recvMsgSize > 0){
-		if(fwrite(messageBuffer, 1, recvMsgSize, clientfile) != recvMsgSize){
-			fprintf(stderr, "%s @ %d: [CLIENT] Failed to fwrite() %d bytes to %s\n", __FILE__, __LINE__, recvMsgSize,filename);
+	do{
+		read_size = read(socketfd, read_buffer, BUFSIZE);
+		if(read_size < 0){
+			perror("Read from socket error");
 			exit(1);
 		}
 
-		if((recvMsgSize = recv(mySocket, messageBuffer, BUFSIZE-1, 0)) == -1){
-			fprintf(stderr, "%s @ %d: [CLIENT] Failure at recv()\n", __FILE__, __LINE__);
+		if(write(filefd , read_buffer , read_size) < 0){
+			printf("Write to file failed\n");
 			exit(1);
+			
 		}
+
+		
+	} while (read_size > 0);
+
+
+
+	if(close(filefd) < 0){
+		perror("Could not close file");
+		exit(1);
 	}
 
-	fclose(clientfile);
-	close(mySocket);
+	if(close(socketfd) < 0){
+		perror("Could not close socket\n");
+		exit(1);
+	}
+
+
 
 	return 0;
 }
