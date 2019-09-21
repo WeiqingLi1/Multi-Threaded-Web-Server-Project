@@ -44,38 +44,40 @@ Sequence of tasks `main()`:
 --> wait for worker threads to finish all request tasks and join
 --> free memory
 
-`assign_worker_to_task`: each worker thread will execute this function. It run indefinitely inside for-loop until `request_queue` is empty and `main()` thread has finished queuing up the requests. Worker threads wait until there is an item in `request_queue`. When there is an item, which is broad casted by `main()`, it performs making request to server. Once all items in queue are fulfilled and `main()` updated `queuing_request_finished` variableto indicate it has finished adding request to queue, worker threads exit and join the main thread.
+`assign_worker_to_task`: each worker thread will execute this function. It run indefinitely inside for-loop until `request_queue` is empty and `main()` thread has finished queuing up the requests. Worker threads wait until there is an item in `request_queue`. When there is an item, which is broadcasted by `main()`, it performs making request to server. Once all items in queue are fulfilled and `main()` updated `queuing_request_finished` variableto indicate it has finished adding request to queue, worker threads exit and join the main thread.
 
 #### Challenge
+Problem of memory leaking and how to notify worker thread when should exit.
+
+Problem 1: Account for cases where queuing up in main thread not as quick as fulfilling the requests in queue by worker threads. Having empty request queue not necessarily indicate worker threads to exit  since main thread may add more requests in queue. 
+
+Solution: `queuing_request_finished` added, worker thread can only exit when this variable is set and queue is empty.
+
+Problem 2: More test case should be tested, like change number of threads and requests in each thread. e.g. 
+#threads is large, #request is large;
+#threads is small, #request is small;
+#thread > #request per thread.
+
 #### `gfserver_main.c`
 At beginning, `gfserver_main.c` handles request in a single thread whenever registered handler function was called. Now we need to add wrapper request handler which will queue request and notify workers to fulfill the queued requests.
-move codes for making request to server into a seperate function so that requests can be made inside a thread.
 
-Your README file is your opportunity to demonstrate to us that you understand the project.  Ideally, this
-should be a guide that someone not familiar with the project could pick up and read and understand
-what you did, and why you did it.
+Sequence of tasks `main()`: 
+    parse arguments
+--> initialize variables (e.g. request queue, mutex, condition variables etc.)
+--> register wrapper handler, `client_request_handler`, instead of `handler_get`
+--> initialize worker threads
+--> run `gfserver_server` to listen to client requests
 
-Specifically, we will evaluate your submission based upon:
+Function `client_request_handler` registered to `gfs` will be called every time client makes a request. All `client_request_handler` queueed in the request path and broadcast worker threads.
 
-- Your project design.  Pictures are particularly helpful here.
-- Your explanation of the trade-offs that you considered, the choices you made, and _why_ you made those choices.
-- A description of the flow of control within your submission. Pictures are helpful here.
-- How you implemented your code. This should be a high level description, not a rehash of your code.
-- How you _tested_ your code.  Remember, Bonnie isn't a test suite.  Tell us about the tests you developed.
-  Explain any tests you _used_ but did not develop.
-- References: this should be every bit of code that you used but did not write.  If you copy code from
-  one part of the project to another, we expect you to document it. If you _read_ anything that helped you
-  in your work, tell us what it was.  If you referred to someone else's code, you should tell us here.
-  Thus, this would include articles on Stack Overflow, any repositories you referenced on github.com, any
-  books you used, any manual pages you consulted.
+`assign_worker_to_task`: each worker thread will execute this function. It run indefinitely inside for-loop. Worker threads wait until there is an item in `client_request_queue`. When there is an item, which is broadcasted by `client_request_handler`, it call `handler_get` with request path dequeued.
+
+#### Challenge
+Test code by changing number of threads and number of requests client made.
 
 
-In addition, you have an opportunity to earn extra credit.  To do so, we want to see something that
-adds value to the project.  Observing that there is a problem or issue _is not enough_.  We want
-something that is easily actioned.  Examples of this include:
+## Suggestion
+Understand the response from bonnie and debug with that is too hard.
 
-- Suggestions for additional tests, along with an explanation of _how_ you envision it being tested
-- Suggested revisions to the instructions, code, comments, etc.  It's not enough to say "I found
-  this confusing" - we want you to tell us what you would have said _instead_.
+## References
 
-While we do award extra credit, we do so sparingly.
