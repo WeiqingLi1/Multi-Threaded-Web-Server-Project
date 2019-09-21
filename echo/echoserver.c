@@ -66,85 +66,58 @@ int main(int argc, char **argv) {
 
 
   /* Socket Code Here */
-  char *hostname = LOCALHOST;
-  char messageBuffer[MESSAGEBUFFER];
-  char portnumchar[6];
-  int serverSocket, clientSocket;
-  struct addinfo hints, *serverinfo, *p;
-  struct sockaddr their_addr;
-  socklen_t sin_size;
-  int yes = 1;
-  int returnvalue, recvMsgSize;
-
-  sprintf(portnumchar, "%d", portno);
-
-  memset(&hints, 0, sizeof hints);
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-
-  if((returnvalue = getaddinfo(hostname, portnumchar, &hints, &serverinfo)) != 0){
-	fprintf(stderr, "%s @ %d: [SERVER] Failure at getaddinfo() (%s)\n", __FILE__, __LINE__, gai_strerror(returnvalue));
+  socketfd = socket(AF_INET, SOCK_STREAM, 0);
+  if(socketfd == -1){
+  	perror("Could not create a socket\n");
 	exit(1);
   }
 
-  for(p = serverinfo; p != NULL; p = p->ai_next){
-	if((serverSocket = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1){
-		fprintf(stderr, "%s @ %d: [SERVER] Failure at socket()\n", __FILE__, __LINE__);
-		continue;
-	}
+  setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
-	if(setsocket(serverSocket, SOL_SOCKET, SO_RESUEADDR, &yes, sizeof(int)) == -1){
-		fprintf(stderr, "%s @ %d: [SERVER] Failure at setsockopt()\n", __FILE__, __LINE__);
-		exit(1);
-	}
+  memset((char *)&server_addr, '\0', sizeof(server_addr));
+  server_addr.sin_family = AF_INET;
+  server_addr.sin_addr.s_addr = INADDR_ANY;
+  server_addr.sin_port = htons(portno);
 
-	if(bind(serverSocket, p->ai_addr, p->addrlen) == -1){
-		close(serverSocket);
-		fprintf(stderr, "%s @ %d: [SERVER] Failure at bind()\n", __FILE__, __LINE__);
-		continue;
-	}
-
-	break;
+  if(bind(socketfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0){
+	perror("Bind failed\n");
+	exit(1);
   }
-
-  freeaddinfo(serverinfo);
-
-  if(p == NULL){
-	fprintf(stderr, "%s @ %d: [SERVER] Failure at bind() with port\n", __FILE__, __LINE__);
+	
+  if(listen(socketfd , maxnpending) < 0){
+  	perror("Listen failed\n");
 	exit(1);
   }
 
-  if(listen(serverSocket, BACKLOG) == -1){
-	fprintf(stderr, "%s @ %d": [SERVER] Failure at listen() with backlog(%d)\n", __FILE__, __LINE__, BACKLOG);
-	exit(1);
-  }
-
-  while(1){
-	sin_size = sizeof their_addr;
-	clientSocket = accept(serverSocket, (struct sockaddr *)&their_addr, &sin_size);
-	if(clientSocket == -1){
-		fprintf(stderr, "%s @ %d": [SERVER] Failure at accept()\n", __FILE__, __LINE__);
-		continue;
+	
+  sockaddr_size = sizeof(struct sockaddr_in);
+  while((new_socketfd = accept(socketfd, (struct sockaddr *)&client_addr, (socklen_t*)&sockaddr_size))){
+	memset(client_reply, '\0', BUFSIZE);
+	if(read(new_socketfd, client_reply , BUFSIZE) < 0){
+		fprintf("Message receive from client failed\n");
+		exit(1);
 	}
-
-	if((recvMsgSize = recv(clientSocket, messageBuffer, MESSAGEBUFFER - 1, 0)) == -1){
-		fprintf(stderr, "%s @ %d": [SERVER] Failure at recv()\n", __FILE__, __LINE__);
+	perror(client_reply);
+	fflush(stdout);
+	strcpy(message, client_reply);
+	write(new_socketfd, message, strlen(message)+1);
+	if(close(new_socketfd) < 0){
+		fprintf("Could not close socket\n");
 		exit(1);
 	}
 
-	messageBuffer[recvMsgSize] = '\0';
-
-	sendMsgSize = send(clientSocket, messageBuffer, MESSAGEBUFFER-1, 0);
-
-	if(sendMsgSize != MESSAGEBUFFER-1){
-		fprintf(stderr, "%s @ %d: [SERVER] Failure to send() %d bytes\n", __FILE__, __LINE__,MESSAGEBUFFER-1);
+	if(new_socketfd < 0){
+		perror("Connection accept failed\n");
 		exit(1);
+		
 	}
 
-	close(clientSocket);
   }
 
-  close(serverSocket);
+  
+  
+
+
 
   return 0;
 
