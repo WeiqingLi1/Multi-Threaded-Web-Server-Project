@@ -218,8 +218,8 @@ int gfc_perform(gfcrequest_t **gfr){
 			total_response_size += response_size;
 			res_length -= response_size;
 			printf("Total response size: %zu\n", total_response_size);
-		} while ();
-	}
+		} while (response_size > 0);
+	
 
 	gfr->total_response_size = total_response_size;
 	printf("Final total response size: %zu\n", total_response_size);
@@ -230,7 +230,7 @@ int gfc_perform(gfcrequest_t **gfr){
 		return -1;
 		
 	}
-
+  }
 
 	return 0;
 }

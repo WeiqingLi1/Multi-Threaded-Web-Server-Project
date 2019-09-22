@@ -119,7 +119,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	fprintf(server_reply);
+	printf(server_reply);
 
 	return 0;
 }

@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
   while((new_socketfd = accept(socketfd, (struct sockaddr *)&client_addr, (socklen_t*)&sockaddr_size))){
 	memset(client_reply, '\0', BUFSIZE);
 	if(read(new_socketfd, client_reply , BUFSIZE) < 0){
-		fprintf("Message receive from client failed\n");
+		printf("Message receive from client failed\n");
 		exit(1);
 	}
 	perror(client_reply);
@@ -102,9 +102,10 @@ int main(int argc, char **argv) {
 	strcpy(message, client_reply);
 	write(new_socketfd, message, strlen(message)+1);
 	if(close(new_socketfd) < 0){
-		fprintf("Could not close socket\n");
+		printf("Could not close socket\n");
 		exit(1);
 	}
+  }
 
 	if(new_socketfd < 0){
 		perror("Connection accept failed\n");
@@ -112,7 +113,7 @@ int main(int argc, char **argv) {
 		
 	}
 
-  }
+
 
   
   

@@ -67,7 +67,7 @@ ssize_t gfs_send(gfcontext_t **ctx, const void *data, size_t len){
 		data += write_size;
 		len -= write_size;
 		total_write_transferred += write_size;
-	} while(write_size > 0)
+	} while(write_size > 0);
 		
 	return total_write_transferred;
 }

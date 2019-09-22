@@ -99,7 +99,7 @@ int main(int argc, char **argv)
 	server_addr.sin_port = htons(portno);
 
 	if(connect(socketfd , (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0){
-		fprintf("Error during connect\n");
+		printf("Error during connect\n");
 		exit(1);
 	}
 	

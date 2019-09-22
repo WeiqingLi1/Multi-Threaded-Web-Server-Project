@@ -1,4 +1,14 @@
 #include "gfclient-student.h"
+#include <stdio.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <netinet/in.h>
+#include <string.h>
+#include <stdlib.h>
+#include <netdb.h>
+#include <getopt.h>
 #include "gfclient.h"
 #include "workload.h"
 
@@ -70,6 +80,10 @@ static void writecb(void* data, size_t data_len, void *arg){
   fwrite(data, 1, data_len, file);
 }
 
+static void headercb(void* data, size_t data_len, void *arg){
+  printf("headercb called\n");
+  printf("Test headercb: %s --- %zu -- %s\n", (char*)data, data_len, (char*)arg);
+}
 /* Main ========================================================= */
 int main(int argc, char **argv) {
 /* COMMAND LINE OPTIONS ============================================= */
