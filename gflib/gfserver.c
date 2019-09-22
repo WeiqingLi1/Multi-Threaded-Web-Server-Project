@@ -90,154 +90,211 @@ char* status_to_string(gfstatus_t status) {
     return status_string;
 }
 
-//revise starts here
+
 ssize_t gfs_sendheader(gfcontext_t **ctx, gfstatus_t status, size_t file_len){
-	char messageBuffer[BUFFERLEN];
-	char statmsg[16];
-	ssize_t sendMsgSize;
-	ctx->bytes_remaining = file_len;
-	if(status == GF_OK){
-		strcpy(statmsg,"OK");
-		sprintf(messageBuffer, "GETFILE %s %d%s", statmsg,file_len,MARKER);
+	char* header_buffer;
+	ssize_t write_size, total_write_size = 0, header_size;
+	header_buffer = (char*)calloc(BUFSIZE, sizeof(char));
+	
+	
+	
+	if(file_len == 0){
+		header_size = sprintf(header_buffer, "%s %s\r\n\r\n", SCHEME, status_to_string(status));
 	} else {
-		if (status == GF_FILE_NOT_FOUND) 
-			strcpy(statmsg,"FILE_NOT_FOUND");
-		else if (status == GF_ERROR)
-			strcpy(statmsg,"ERROR");
-		else
-			strcpy(statmsg,"INVALID");
-		sprintf(messageBuffer, "GETFILE %s%s", statmsg,MARKER);
+		header_size = sprintf(header_buffer, "%s %s %zu\r\n\r\n", SCHEME, status_to_string(status), file_len);
 	}
 
-	if((sendMsgSize = send(ctx->socket, messageBuffer, BUFFERLEN, 0)) == -1){
-		fprintf(stderr, "%s @ %d: [SERVER] Failure to send() header\n", __FILE__, __LINE__);
-		return -1;
-	}
-	if(status != GF_OK)
-		gfs_abort(ctx);
-    return -1;
+	do{
+		if((write_size = write(ctx->client_socketfd , header_buffer , header_size)) < 0){
+			perror("Send header failed");
+			exit(1);
+		}
+		header_buffer += write_size;
+		header_size -= write_size;
+		total_write_size += write_size;
+	} while (write_size > 0);
+    return total_write_size;
 }
 
-void gfserver_serve(gfserver_t **gfs){
+int parse_request(int request_socketfd, gfserver_t *gfs) {
+    int return_value = 0;
+    ssize_t read_size;
+	
+    char *read_buffer, *req_buffer, *terminator_received, *req_scheme, *req_method, *req_path, *path_test_space, *path_test_slash;
 
+    read_buffer = (char*)calloc(MAX_REQUEST_LEN, sizeof(char));
+    req_buffer = (char*)calloc(MAX_REQUEST_LEN, sizeof(char));
+
+    req_scheme = (char*)calloc(10, sizeof(char));
+    req_method = (char*)calloc(10, sizeof(char));
+    req_path = (char*)calloc(MAX_REQUEST_LEN, sizeof(char));
+
+
+	
+    read_size = read(request_socketfd, read_buffer, MAX_REQUEST_LEN);
+    if (read_size < 0){
+        perror("Read from request socket error\n");
+        return_value = -2;
+    }
+    else {
+        strcat(req_buffer, read_buffer);
+        terminator_received = strstr(req_buffer, "\r\n\r\n");
+        if (terminator_received == NULL) {
+            printf("Terminator not received\n");
+            return_value = -1;
+        }
+        else {
+            
+		
+            req_buffer = strtok(read_buffer, "\r\n\r\n");
+
+            printf("Request: %s\n", req_buffer);
+
+            sscanf(req_buffer, "%s %s %s",
+                   req_scheme,
+                   req_method,
+                   req_path);
+
+            path_test_space = strstr(req_path, " ");
+            path_test_slash = strstr(req_path, "/");
+
+            
+		
+            if (strcmp(req_scheme, SCHEME) != 0) {
+                printf("Invalid scheme received\n");
+
+                return_value = -1;
+            }
+            else if (strcmp(req_method, "GET") != 0) {
+                printf("Invalid method received\n");
+
+                return_value = -1;
+            }
+            else if (path_test_space != NULL || path_test_slash == NULL) {
+                 printf("Invalid path received\n");
+                return_value = -1;
+            }
+            else {
+                gfs->req_path = req_path;
+
+                printf("Request path: %s\n", gfs->req_path);
+            }
+        }
+    }
+
+    free(read_buffer);
+    free(req_scheme);
+    free(req_method);
+
+    return return_value;
+}
+
+ssize_t send_unsuccessful_response(gfcontext_t *ctx, int rc){
+    char* header_buffer;
+    ssize_t write_size, total_write_size = 0;
+    size_t header_size;
+
+    header_buffer = (char*)calloc(BUFSIZE, sizeof(char));
+
+    if (rc == -1){
+        header_size = sprintf(header_buffer, "%s %s\r\n\r\n", SCHEME, status_to_string(400));
+    } else if (rc == -2) {
+        header_size = sprintf(header_buffer, "%s %s\r\n\r\n", SCHEME, status_to_string(500));
+    } else {
+        printf("Invalid rc\n");
+        exit(1);
+    }
+
+    do {
+        if((write_size = write(ctx->client_socketfd, header_buffer, header_size)) < 0){
+            perror("Send header failed\n");
+            exit(1);
+        }
+	    
+        header_buffer += write_size;
+        header_size -= write_size;
+        total_write_size += write_size;
+	    
+    } while (header_size > 0);
+
+    return total_write_size;
+}
+
+int start_server(gfserver_t* gfs) {
+    int socketfd = 1;
+    int option = 1;
+
+    
+	
+    socketfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (socketfd == -1){
+        perror("Could not create a socket");
+        return -1;
+    }
+
+  
+	
+    socketfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (socketfd == -1) {
+        perror("Could not create a socket\n");
+        return -1;
+    }
+	
+    setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+
+
+	
+    if( bind(socketfd,(struct sockaddr *)&(gfs->server_addr), sizeof(gfs->server_addr)) < 0)
+    {
+        perror("Bind failed\n");
+        return -1;
+    }
+
+
+    if (listen(socketfd , gfs->max_npending) < 0){
+        perror("Listen failed\n");
+        return -1;
+    }
+
+    printf("Listening requests\n");
+
+    return socketfd;
+}
+
+
+void gfserver_serve(gfserver_t **gfs){
+	int socketfd, request_socketfd, rc;
+	struct sockaddr_in client_addr;
+	
+	if((socketfd = start_server(gfs)) < 0){
+		exit(1);
+	}
+	
+	ssize_t sockaddr_size = sizeof(struct sockaddr_in);
+	
+    while( (request_socketfd = accept(socketfd, (struct sockaddr *)&client_addr, (socklen_t*)&sockaddr_size)) ){
+        gfcontext_t* ctx = (gfcontext_t*)malloc(sizeof(gfcontext_t));
+        ctx->client_socketfd = request_socketfd;
+
+        if ((rc = parse_request(request_socketfd, gfs)) < 0) {
+            printf("Unsuccessful response\n");
+            send_unsuccessful_response(ctx, rc);
+            gfs_abort(ctx);
+        }
+        else {
+            printf("Handler called\n");
+            gfs->handler(ctx, gfs->req_path, gfs->arg);
+        }
+    }
+	
+	if(request_socketfd < 0){
+		perror("Connection accept failed\n");
+		exit(1);
+	}
 }
 
 void gfserver_set_handlerarg(gfserver_t **gfs, void* arg){
-	int serverSocket;
-	char portnumchar[6];
-	char messageBuffer[BUFFERLEN];
-	struct addrinfo hints, *serverinfo, *p;
-	struct sockaddr their_addr;
-	socklen_t sin_size;
-	int yes=1;
-	int returnvalue,recvMsgSize;
-
-	sprintf(portnumchar, "%d", gfs->port);
-
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-
-	if((returnvalue = getaddrinfo(LOCALHOST, portnumchar, &hints, &serverinfo)) != 0){
-		fprintf(stderr, "%s @ %d: [SERVER] Failure at getaddrinfo() (%s)\n", __FILE__, __LINE__, gai_strerror(returnvalue));
-		free(gfs);
-		exit(1);
-	}
-
-	for(p = serverinfo; p != NULL; p = p->ai_next){
-		if((serverSocket = socket(p->ai_family, p->ai_socktype,p->ai_protocol)) == -1){
-			fprintf(stderr, "%s @ %d: [SERVER] Failure at socket()\n", __FILE__, __LINE__);
-			continue;
-		}
-
-		if(setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &yes,sizeof(int)) == -1){
-			fprintf(stderr, "%s @ %d: [SERVER] Failure at setsockopt()\n", __FILE__, __LINE__);
-			free(gfs);
-			exit(1);
-		}
-
-		if(bind(serverSocket, p->ai_addr, p->ai_addrlen) == -1){
-			close(serverSocket);
-			fprintf(stderr, "%s @ %d: [SERVER] Failure at bind()\n", __FILE__, __LINE__);
-			continue;
-		}
-
-		break;
-	}
-
-	freeaddrinfo(serverinfo);
-
-	if(p == NULL){
-		fprintf(stderr, "%s @ %d: [SERVER] Failed to bind() to any port\n", __FILE__, __LINE__);
-		free(gfs);
-		exit(1);
-	}
-
-	if(listen(serverSocket, gfs->max_npending) == -1){
-		fprintf(stderr, "%s @ %d: [SERVER] Failure at listen() with backlog (%d)\n", __FILE__, __LINE__, gfs->max_npending);
-		free(gfs);
-		exit(1);
-	}
-
-	char * path;
-	if((path = malloc(200)) == NULL){
-		fprintf(stderr, "%s @ %d: [SERVER] Failure to malloc() the path variable\n", __FILE__, __LINE__);
-		free(gfs);
-		exit(1);
-	}
-
-	struct gfcontext_t *context;
-	if((context = malloc(sizeof(struct gfcontext_t))) == NULL){
-		fprintf(stderr, "%s @ %d: [SERVER] Failure to malloc() the context\n", __FILE__, __LINE__);
-		free(path);
-		free(gfs);
-		exit(1);
-	}
-
-	while(1){
-		sin_size = sizeof their_addr;
-		context->socket = accept(serverSocket, (struct sockaddr *)&their_addr, &sin_size);
-		if(context->socket == -1){
-			fprintf(stderr, "%s @ %d: [SERVER] Failure at accept()\n", __FILE__, __LINE__);
-			continue;
-		}
-
-		if((recvMsgSize = recv(context->socket, messageBuffer, BUFFERLEN-1, 0)) == -1){
-			fprintf(stderr, "%s @ %d: [SERVER] Failure at recv()\n", __FILE__, __LINE__);
-			free(context);
-			free(path);
-			free(gfs);
-			exit(1);
-		}
-
-		messageBuffer[recvMsgSize] = '\0';
-
-		char scheme[8];
-		memset(&scheme, 0, sizeof scheme);
-		char method[4];
-		memset(&method, 0, sizeof method);
-		char marker[5];
-		memset(&marker, 0, sizeof marker);
-		char *token = strtok(messageBuffer, " ");
-		strncpy(scheme,token,sizeof scheme);
-		token = strtok(NULL, " ");
-		strncpy(method,token,sizeof method);
-		token = strtok(NULL, " ");
-		sscanf( token+sscanf( token, "%[^\r]", path ), "%[\r\n]", marker );
-		printf("[debug-server] The path is %s\n",path);
-		if((strcmp(scheme,SCHEME) != 0) || (strcmp(method,METHOD) != 0) || (strcmp(marker,MARKER) != 0)){
-			fprintf(stderr, "%s @ %d: [SERVER] Client sent malformed header\n", __FILE__, __LINE__);
-			gfs_sendheader(context,GF_INVALID,0);
-			continue;
-		}
-
-		gfs->handler(context,path,gfs->handler_arg);
-		memset(&messageBuffer, 0, sizeof messageBuffer);
-
-		close(serverSocket);
-		free(gfs);
-		free(path); 
-	}
+	gfs->arg = arg;
 }
 
 void gfserver_set_handler(gfserver_t **gfs, gfh_error_t (*handler)(gfcontext_t **, const char *, void*)){
@@ -249,7 +306,7 @@ void gfserver_set_maxpending(gfserver_t **gfs, int max_npending){
 }
 
 void gfserver_set_port(gfserver_t **gfs, unsigned short port){
-	gfs->port = port;
+	gfs->server_addr.sin_port = htons(port);
 }
 
 
